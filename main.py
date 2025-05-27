@@ -1,33 +1,41 @@
 import streamlit as st
+import pandas as pd
 import folium
 from streamlit_folium import st_folium
 
-st.title("🗺️ 서울 고등학교 위치 지도")
+st.title("서울 중·고등학교 위치 지도")
 
-# 서울 고등학교 샘플 데이터 (학교명, 위도, 경도)
-schools = [
-    {"name": "서울고등학교", "lat": 37.484016, "lng": 126.982823},
-    {"name": "경복고등학교", "lat": 37.589644, "lng": 126.968724},
-    {"name": "용산고등학교", "lat": 37.535227, "lng": 126.991353},
-    {"name": "한영고등학교", "lat": 37.498667, "lng": 127.130383},
-    {"name": "중앙고등학교", "lat": 37.573833, "lng": 126.976961},
-    # 필요한 만큼 추가
-]
+# adress.csv 파일 불러오기
+try:
+    df = pd.read_csv("adress.csv", encoding='utf-8')
+except UnicodeDecodeError:
+    df = pd.read_csv("adress.csv", encoding='cp949')
 
-# 서울 중심 좌표
-seoul_center = [37.5665, 126.9780]
+st.write("데이터 미리보기", df.head())
 
-# folium 지도 생성
-m = folium.Map(location=seoul_center, zoom_start=11)
+# 학교 유형 컬럼이 없으면 자동 분류 (이름에 '중' 또는 '고' 포함)
+if "학교유형" not in df.columns:
+    def get_school_type(name):
+        if "중" in name:
+            return "중학교"
+        elif "고" in name:
+            return "고등학교"
+        else:
+            return "기타"
+    df["학교유형"] = df["학교명"].apply(get_school_type)
 
-# 학교 위치 마커 추가
-for school in schools:
+# folium 지도 객체 생성 (서울 시청 기준)
+m = folium.Map(location=[37.5665, 126.9780], zoom_start=11)
+
+# 학교별 마커 표시 (중학교: green, 고등학교: blue)
+for idx, row in df.iterrows():
+    color = "blue" if row["학교유형"] == "고등학교" else "green"
     folium.Marker(
-        location=[school["lat"], school["lng"]],
-        popup=school["name"],
-        icon=folium.Icon(color='blue', icon='info-sign')
+        location=[row["위도"], row["경도"]],
+        popup=f"{row['학교명']} ({row['학교유형']})",
+        icon=folium.Icon(color=color)
     ).add_to(m)
 
-# Streamlit에 folium 지도 표시
-st_folium(m, width=700, height=500)
+st.markdown("**파란색:** 고등학교, **초록색:** 중학교")
+st_folium(m, width=800, height=600)
 
