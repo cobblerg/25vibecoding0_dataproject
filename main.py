@@ -32,16 +32,17 @@ def extract_region(address):
         return ""
 df["지역"] = df["주소"].apply(extract_region)
 
+# 빈칸이 아닌 학교명/지역만 목록에 추가
+school_list = sorted([s for s in df["학교명"].unique() if str(s).strip()])
+region_list = sorted([r for r in df["지역"].unique() if str(r).strip()])
+
 # 사용자 입력 UI
 st.subheader("학교명 또는 지역으로 검색")
 search_mode = st.radio("검색 방법을 선택하세요:", ("학교명", "지역"))
 
 if search_mode == "학교명":
-    # 학교명 직접 입력 또는 선택
-    school_list = df["학교명"].sort_values().unique().tolist()
-    selected_school = st.selectbox("학교명을 선택하거나 입력하세요:", [""] + school_list)
+    selected_school = st.selectbox("학교명을 선택하거나 입력하세요:", school_list)
     manual_school = st.text_input("또는 학교명을 직접 입력하세요 (선택 사항):").strip()
-    # 우선 입력한 값, 없으면 선택한 값
     search_school = manual_school if manual_school else selected_school
     if search_school:
         filtered = df[df["학교명"].str.contains(search_school, case=False, na=False)]
@@ -49,9 +50,7 @@ if search_mode == "학교명":
         filtered = df.iloc[0:0]  # 빈 데이터프레임
 
 elif search_mode == "지역":
-    # 지역 직접 입력 또는 선택
-    region_list = df["지역"].sort_values().unique().tolist()
-    selected_region = st.selectbox("지역명을 선택하거나 입력하세요:", [""] + region_list)
+    selected_region = st.selectbox("지역명을 선택하거나 입력하세요:", region_list)
     manual_region = st.text_input("또는 지역명을 직접 입력하세요 (예: 강남구):").strip()
     search_region = manual_region if manual_region else selected_region
     if search_region:
@@ -59,9 +58,11 @@ elif search_mode == "지역":
     else:
         filtered = df.iloc[0:0]  # 빈 데이터프레임
 
-# 지도 생성 및 표시
+# 지도 생성 및 표시 (검색 결과 중심으로)
 if not filtered.empty:
-    m = folium.Map(location=[37.5665, 126.9780], zoom_start=12)
+    # 지도 중심을 검색 결과의 평균 좌표로 설정
+    map_center = [filtered["위도"].mean(), filtered["경도"].mean()]
+    m = folium.Map(location=map_center, zoom_start=13)
     for idx, row in filtered.iterrows():
         color = "blue" if row["학교유형"] == "고등학교" else "green"
         folium.Marker(
@@ -71,7 +72,5 @@ if not filtered.empty:
         ).add_to(m)
     st.markdown("**파란색:** 고등학교, **초록색:** 중학교")
     st_folium(m, width=800, height=600)
-elif (search_mode == "학교명" and (search_school)) or (search_mode == "지역" and (search_region)):
+elif (search_mode == "학교명" and search_school) or (search_mode == "지역" and search_region):
     st.warning("검색 결과가 없습니다. 이름 또는 지역명을 다시 확인해 주세요.")
-
-
