@@ -1,1 +1,41 @@
+import streamlit as st
+import pandas as pd
+import folium
+from streamlit_folium import st_folium
+
+st.title("서울지역 고등학교 및 중학교 위치 지도")
+
+# CSV 업로드
+uploaded = st.file_uploader("중고등학교 주소 CSV 파일 업로드", type="csv")
+
+if uploaded:
+    df = pd.read_csv(uploaded, encoding='utf-8')  # 인코딩이 다르면 cp949로 변경
+    st.write("데이터 미리보기:", df.head())
+
+    # 학교명/유형/주소/위도/경도 등 컬럼명 확인
+    st.write("컬럼 목록:", df.columns.tolist())
+    
+    # 보통 '학교명', '학교유형'(중/고), '위도', '경도' 등의 컬럼이 있을 것으로 가정
+    # 만약 다르면, 실제 컬럼명에 맞게 아래 부분을 수정해 주세요.
+    lat_col = '위도'
+    lon_col = '경도'
+    name_col = '학교명'
+    type_col = '학교유형'  # '중학교' 또는 '고등학교'
+    
+    # folium 지도 객체 생성 (서울 중심)
+    m = folium.Map(location=[37.5665, 126.9780], zoom_start=11)
+    
+    # 학교별 마커 추가
+    for idx, row in df.iterrows():
+        color = 'blue' if '고등학교' in row[type_col] else 'green'
+        folium.Marker(
+            location=[row[lat_col], row[lon_col]],
+            popup=f"{row[name_col]} ({row[type_col]})",
+            icon=folium.Icon(color=color)
+        ).add_to(m)
+    
+    # Streamlit에 folium 지도 띄우기
+    st_folium(m, width=800, height=600)
+else:
+    st.warning("CSV 파일을 업로드해 주세요.")
 
