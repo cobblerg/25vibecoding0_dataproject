@@ -6,8 +6,8 @@ import openrouteservice
 import os
 import requests
 
-GOOGLE_API_KEY = "AIzaSyBGYGhUT18CnNOwBI_sG_TN_Qj0s-cjaNI"  # 🚩[수정/추가] 구글 Directions API 키 입력
-ORS_API_KEY = "5b3ce3597851110001cf624857837061d874456e9b9c1fa109068420"  # openrouteservice API 키
+GOOGLE_API_KEY = "......"  # 🚩[수정/추가] 구글 Directions API 키 입력
+ORS_API_KEY = "......."  # openrouteservice API 키
 
 st.title("서울 중고등학교 실제 도로/도보/대중교통 경로 찾기")
 
