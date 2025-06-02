@@ -4,6 +4,8 @@ import folium
 from streamlit_folium import st_folium
 import openrouteservice
 import os
+import requests
+GOOGLE_API_KEY = "AIzaSyBGYGhUT18CnNOwBI_sG_TN_Qj0s-cjaNI"
 
 st.title("서울 중고등학교 실제 도로 경로 찾기")
 
@@ -102,6 +104,48 @@ if ORS_API_KEY and start_school and end_school and start_school != end_school:
 
         st.markdown(f"🚗 **차로 이동 거리:** `{distance_km:.2f} km` &nbsp;&nbsp; 🕒 **예상 소요 시간:** `{duration_min:.1f} 분`")
         st_folium(route_map, width=800, height=600)
+        st.markdown(f"🚗 **차로 이동 거리:** `{distance_km:.2f} km` &nbsp;&nbsp; 🕒 **예상 소요 시간:** `{duration_min:.1f} 분`")
+        st_folium(route_map, width=800, height=600)
+
+        # --------------- [Google Directions API 추가] ---------------
+        st.markdown("---")
+        st.markdown("### 🚊 대중교통(Transit) 경로 안내")
+        if GOOGLE_API_KEY:
+            origin = f"{start_row['위도']},{start_row['경도']}"
+            destination = f"{end_row['위도']},{end_row['경도']}"
+            params = {
+                "origin": origin,
+                "destination": destination,
+                "mode": "transit",
+                "language": "ko",
+                "key": GOOGLE_API_KEY
+            }
+            url = "https://maps.googleapis.com/maps/api/directions/json"
+            response = requests.get(url, params=params)
+            data = response.json()
+            if data['status'] == 'OK':
+                leg = data['routes'][0]['legs'][0]
+                st.markdown(f"**출발지:** {leg['start_address']}  \n**도착지:** {leg['end_address']}")
+                st.markdown(f"**총 거리:** `{leg['distance']['text']}`  &nbsp;&nbsp;  **예상 소요시간:** `{leg['duration']['text']}`")
+
+                # 세부 경로 안내 표
+                steps = []
+                for step in leg['steps']:
+                    summary = step['html_instructions']
+                    travel_mode = step['travel_mode']
+                    if step.get('transit_details'):
+                        transit = step['transit_details']
+                        line = transit['line']['short_name'] if 'short_name' in transit['line'] else transit['line'].get('name', '')
+                        vehicle = transit['line']['vehicle']['type']
+                        summary += f" (노선: {line}, {vehicle})"
+                    steps.append({"이동수단": travel_mode, "경로 요약": summary, "거리": step['distance']['text'], "시간": step['duration']['text']})
+                st.dataframe(steps)
+            else:
+                st.warning(f"Google 대중교통 경로를 찾을 수 없습니다: {data['status']}")
+        else:
+            st.info("Google Directions API 키가 등록되어 있지 않습니다. 대중교통 안내를 위해 API 키를 입력해 주세요.")
+        # ---------------------------------------------------------
+
     except Exception as e:
         st.warning(f"경로 탐색 중 오류가 발생했습니다: {e}")
 elif start_school == end_school and start_school:
