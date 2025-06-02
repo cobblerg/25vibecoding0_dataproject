@@ -5,9 +5,11 @@ from streamlit_folium import st_folium
 import openrouteservice
 import os
 import requests
-GOOGLE_API_KEY = "AIzaSyBGYGhUT18CnNOwBI_sG_TN_Qj0s-cjaNI"
 
-st.title("서울 중고등학교 실제 도로 경로 찾기")
+GOOGLE_API_KEY = "AIzaSyBGYGhUT18CnNOwBI_sG_TN_Qj0s-cjaNI"  # 🚩[수정/추가] 구글 Directions API 키 입력
+ORS_API_KEY = "5b3ce3597851110001cf624857837061d874456e9b9c1fa109068420"  # openrouteservice API 키
+
+st.title("서울 중고등학교 실제 도로/도보/대중교통 경로 찾기")
 
 csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "adress.csv")
 try:
@@ -17,16 +19,14 @@ except UnicodeDecodeError:
 
 school_list = sorted([s for s in df["학교명"].unique() if str(s).strip()])
 
-# 🚩 [수정] 학교명에서 '중학교', '고등학교', '학교' 등 불용어를 제거한 이름 만들기
+# 학교명 불용어 제거 함수
 def simplify_school_name(name):
     for kw in ['중학교', '고등학교', '학교']:
         name = name.replace(kw, '')
     return name.strip()
 
-# 불용어가 제거된 학교명 컬럼 추가 (검색용)
 df['검색용이름'] = df['학교명'].apply(simplify_school_name)
 
-# 🚩 [수정] 입력값에서 불용어 제거하고 검색
 col1, col2 = st.columns(2)
 with col1:
     start_school_select = st.selectbox("출발학교를 선택하세요", school_list)
@@ -37,17 +37,13 @@ with col2:
     end_school_input = st.text_input("또는 도착학교 이름을 직접 입력하세요 (선택 사항)").strip()
     end_school_search = simplify_school_name(end_school_input) if end_school_input else simplify_school_name(end_school_select)
 
-# 🚩 [수정] 불용어 제거된 이름으로 검색하여 학교명 매칭
 def find_school_name(search, df):
-    # 완전일치 우선, 없으면 포함일치
     matches = df[df['검색용이름'] == search]
     if not matches.empty:
         return matches.iloc[0]['학교명']
-    # 부분일치(가장 앞에 포함) 우선
     matches = df[df['검색용이름'].str.startswith(search)]
     if not matches.empty:
         return matches.iloc[0]['학교명']
-    # 아무데나 포함
     matches = df[df['검색용이름'].str.contains(search)]
     if not matches.empty:
         return matches.iloc[0]['학교명']
@@ -55,8 +51,6 @@ def find_school_name(search, df):
 
 start_school = find_school_name(start_school_search, df)
 end_school = find_school_name(end_school_search, df)
-
-ORS_API_KEY = "5b3ce3597851110001cf624857837061d874456e9b9c1fa109068420"  # 본인 키로 바꿔주세요!
 
 if ORS_API_KEY and start_school and end_school and start_school != end_school:
     try:
@@ -67,48 +61,64 @@ if ORS_API_KEY and start_school and end_school and start_school != end_school:
             (start_row["경도"], start_row["위도"]),
             (end_row["경도"], end_row["위도"])
         )
-        route = client.directions(coords, profile="driving-car", format="geojson")
-        route_coords = [
-            [point[1], point[0]] for point in route['features'][0]['geometry']['coordinates']
-        ]
-        summary = route['features'][0]['properties']['summary']
-        distance_km = summary['distance'] / 1000
-        duration_min = summary['duration'] / 60
 
-        # 🚩 [수정] 두 학교 모두 지도에 보이도록 지도 중심/zoom 자동 조정
+        # -------------------- 자동차(도로) 경로 --------------------
+        car_route = client.directions(coords, profile="driving-car", format="geojson")
+        car_coords = [
+            [point[1], point[0]] for point in car_route['features'][0]['geometry']['coordinates']
+        ]
+        car_summary = car_route['features'][0]['properties']['summary']
+        car_distance_km = car_summary['distance'] / 1000
+        car_duration_min = car_summary['duration'] / 60
+
+        # --------------------- 🚩[수정/추가] 도보 경로 ---------------------
+        walk_route = client.directions(coords, profile="foot-walking", format="geojson")
+        walk_coords = [
+            [point[1], point[0]] for point in walk_route['features'][0]['geometry']['coordinates']
+        ]
+        walk_summary = walk_route['features'][0]['properties']['summary']
+        walk_distance_km = walk_summary['distance'] / 1000
+        walk_duration_min = walk_summary['duration'] / 60
+
+        # -------------------- 지도 표시 --------------------
         min_lat = min(start_row["위도"], end_row["위도"])
         max_lat = max(start_row["위도"], end_row["위도"])
         min_lng = min(start_row["경도"], end_row["경도"])
         max_lng = max(start_row["경도"], end_row["경도"])
-        # 지도 중심
         map_center = [(min_lat + max_lat) / 2, (min_lng + max_lng) / 2]
-        # Folium 지도 생성
         route_map = folium.Map(location=map_center, zoom_start=13)
-        # 지도 bounds(최소/최대 위경도)에 맞게 fit
         route_map.fit_bounds([[min_lat, min_lng], [max_lat, max_lng]])
 
         folium.Marker(
             location=[start_row["위도"], start_row["경도"]],
             popup=f"출발: {start_row['학교명']}",
+            tooltip=start_row['학교명'],  # 🚩[수정/추가] 툴팁 추가
             icon=folium.Icon(color="red", icon="info-sign")
         ).add_to(route_map)
         folium.Marker(
             location=[end_row["위도"], end_row["경도"]],
             popup=f"도착: {end_row['학교명']}",
+            tooltip=end_row['학교명'],  # 🚩[수정/추가] 툴팁 추가
             icon=folium.Icon(color="blue", icon="flag")
         ).add_to(route_map)
         folium.PolyLine(
-            locations=route_coords,
+            locations=car_coords,
             color="orange", weight=5, tooltip=f"{start_school} → {end_school} 도로 경로"
         ).add_to(route_map)
+        folium.PolyLine(
+            locations=walk_coords,
+            color="green", weight=5, tooltip=f"{start_school} → {end_school} 도보 경로"
+        ).add_to(route_map)
 
-        st.markdown(f"🚗 **차로 이동 거리:** `{distance_km:.2f} km` &nbsp;&nbsp; 🕒 **예상 소요 시간:** `{duration_min:.1f} 분`")
-        st_folium(route_map, width=800, height=600)
-        st.markdown(f"🚗 **차로 이동 거리:** `{distance_km:.2f} km` &nbsp;&nbsp; 🕒 **예상 소요 시간:** `{duration_min:.1f} 분`")
-        st_folium(route_map, width=800, height=600)
+        st.markdown(f"### 🚗 자동차(도로) 경로")
+        st.markdown(f"**거리:** `{car_distance_km:.2f} km` &nbsp;&nbsp; **예상 소요 시간:** `{car_duration_min:.1f} 분`")
+        st_folium(route_map, width=800, height=500)
 
-        # --------------- [Google Directions API 추가] ---------------
-        st.markdown("---")
+        st.markdown(f"### 🚶 도보 경로")
+        st.markdown(f"**거리:** `{walk_distance_km:.2f} km` &nbsp;&nbsp; **예상 소요 시간:** `{walk_duration_min:.1f} 분`")
+        # 지도 중복 표시 피하기 위해 도보 경로만 별도로 추가로 지도에 그리고 싶으면 여기에 st_folium() 추가 가능
+
+        # --------------------- 🚩[수정/추가] Google Directions API (대중교통) ---------------------
         st.markdown("### 🚊 대중교통(Transit) 경로 안내")
         if GOOGLE_API_KEY:
             origin = f"{start_row['위도']},{start_row['경도']}"
@@ -125,8 +135,10 @@ if ORS_API_KEY and start_school and end_school and start_school != end_school:
             data = response.json()
             if data['status'] == 'OK':
                 leg = data['routes'][0]['legs'][0]
+                transit_distance = leg['distance']['text']
+                transit_duration = leg['duration']['text']
+                st.markdown(f"**총 거리:** `{transit_distance}`  &nbsp;&nbsp;  **예상 소요시간:** `{transit_duration}`")
                 st.markdown(f"**출발지:** {leg['start_address']}  \n**도착지:** {leg['end_address']}")
-                st.markdown(f"**총 거리:** `{leg['distance']['text']}`  &nbsp;&nbsp;  **예상 소요시간:** `{leg['duration']['text']}`")
 
                 # 세부 경로 안내 표
                 steps = []
