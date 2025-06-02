@@ -1,7 +1,11 @@
+import streamlit as st
+import pandas as pd
+import folium
+from streamlit_folium import st_folium
+
 ###### 🚩 도로경로 표시용 코드: openrouteservice 활용 ######
 import openrouteservice
-
-st.subheader("A학교에서 B학교 실제 도로 경로 표시")
+st.title("A학교에서 B학교 실제 도로 경로 표시")
 
 # openrouteservice API 키 입력 (반드시 본인의 키로 바꿔주세요!)
 ORS_API_KEY = "5b3ce3597851110001cf624857837061d874456e9b9c1fa109068420"
