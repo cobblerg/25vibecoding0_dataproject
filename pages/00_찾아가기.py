@@ -54,7 +54,7 @@ def find_school_name(search, df):
 start_school = find_school_name(start_school_search, df)
 end_school = find_school_name(end_school_search, df)
 
-ORS_API_KEY = "여기에_본인_API_키_입력"  # 본인 키로 바꿔주세요!
+ORS_API_KEY = "5b3ce3597851110001cf624857837061d874456e9b9c1fa109068420"  # 본인 키로 바꿔주세요!
 
 if ORS_API_KEY and start_school and end_school and start_school != end_school:
     try:
